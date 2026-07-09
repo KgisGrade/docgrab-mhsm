@@ -46,16 +46,35 @@ export function Downloader() {
         case "progress":
           setProgress({ current: event.current, total: event.total, label: event.label })
           break
-        case "result":
-          setResult({
-            id: event.id,
-            title: event.title,
-            pages: event.pages,
-            size: event.size,
-            platform: event.platform,
-            format: event.format,
-            catboxUrl: event.catboxUrl,
-            catboxExpiresAt: event.catboxExpiresAt,
+        case "result": {
+          // Build a local blob URL from the inline bytes so the download works
+          // even on serverless hosting where /tmp is per-instance.
+          let blobUrl: string | undefined
+          if (event.fileBase64) {
+            try {
+              const bytes = Uint8Array.from(atob(event.fileBase64), (c) => c.charCodeAt(0))
+              const mime =
+                event.format === "pptx"
+                  ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  : "application/pdf"
+              blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }))
+            } catch {
+              // Fall back to the server file route below.
+            }
+          }
+          setResult((prev) => {
+            if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl)
+            return {
+              id: event.id,
+              title: event.title,
+              pages: event.pages,
+              size: event.size,
+              platform: event.platform,
+              format: event.format,
+              catboxUrl: event.catboxUrl,
+              catboxExpiresAt: event.catboxExpiresAt,
+              blobUrl,
+            }
           })
           if (event.catboxUrl) {
             addHistoryItem({
@@ -72,6 +91,7 @@ export function Downloader() {
           setProgress(null)
           setStatus("done")
           break
+        }
         case "error":
           setProgress(null)
           setStatus("error")

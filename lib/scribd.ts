@@ -11,6 +11,7 @@ interface ScribdResult {
   format: "pdf"
   catboxUrl?: string
   catboxExpiresAt?: number
+  fileBase64?: string
 }
 
 export async function downloadScribd(
@@ -222,6 +223,7 @@ export async function downloadScribd(
         format: "pdf",
         catboxUrl,
         catboxExpiresAt,
+        fileBase64: pdfBuffer.toString("base64"),
       },
     }
   } catch (e) {

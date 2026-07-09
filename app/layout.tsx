@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { ClickRipple } from '@/components/click-ripple'
+import { ParticleBackground } from '@/components/particle-background'
 import './globals.css'
 
 const _geistSans = Geist({ subsets: ['latin'] })
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark bg-background">
       <body className="antialiased font-sans">
+        <ParticleBackground />
         {children}
         <ClickRipple />
         {process.env.NODE_ENV === 'production' && <Analytics />}

@@ -94,28 +94,42 @@ interface SlideInfo {
   baseUrl: string
   titleSlug: string
   maxPage: number
+  /** Quality directories (e.g. "75", "85") actually seen in the page HTML. */
+  qualityDirs: string[]
+  /** Largest image width (e.g. 2048) actually seen in the page HTML. */
+  maxSeenSize: number
 }
 
 function extractSlideInfo(html: string): SlideInfo | null {
   const pageNums = new Set<number>()
+  const qualityDirs = new Set<string>()
+  const sizes = new Set<number>()
   let baseUrl: string | null = null
   let titleSlug: string | null = null
 
   const urls = html.match(/https:\/\/image\.slidesharecdn\.com\/[^"'<>\s)\]]+/g) ?? []
   for (const raw of urls) {
     const clean = raw.split("?")[0]
-    const m = clean.match(/(https:\/\/image\.slidesharecdn\.com\/[^/]+)\/\d+\/(.+)-(\d+)-\d+\.jpg/)
+    const m = clean.match(/(https:\/\/image\.slidesharecdn\.com\/[^/]+)\/(\d+)\/(.+)-(\d+)-(\d+)\.jpg/)
     if (m) {
       if (!baseUrl) {
         baseUrl = m[1]
-        titleSlug = m[2]
+        titleSlug = m[3]
       }
-      pageNums.add(Number.parseInt(m[3], 10))
+      qualityDirs.add(m[2])
+      pageNums.add(Number.parseInt(m[4], 10))
+      sizes.add(Number.parseInt(m[5], 10))
     }
   }
 
   if (!baseUrl || !titleSlug || pageNums.size === 0) return null
-  return { baseUrl, titleSlug, maxPage: Math.max(...pageNums) }
+  return {
+    baseUrl,
+    titleSlug,
+    maxPage: Math.max(...pageNums),
+    qualityDirs: [...qualityDirs],
+    maxSeenSize: sizes.size > 0 ? Math.max(...sizes) : 0,
+  }
 }
 
 function extractTitle(html: string, fallbackSlug: string): string {
@@ -130,53 +144,142 @@ function extractTitle(html: string, fallbackSlug: string): string {
   return title
 }
 
-/** Download a single slide, trying highest resolution first, with retries. */
-async function downloadSlide(baseUrl: string, slug: string, pageNum: number): Promise<Buffer | null> {
-  const candidates = [
-    `${baseUrl}/75/${slug}-${pageNum}-2048.jpg`,
-    `${baseUrl}/85/${slug}-${pageNum}-638.jpg`,
-    `${baseUrl}/85/${slug}-${pageNum}-320.jpg`,
-  ]
-  for (const url of candidates) {
-    for (let attempt = 0; attempt <= IMAGE_RETRIES; attempt++) {
-      try {
-        const resp = await fetchWithTimeout(url, { headers: { "User-Agent": UA } }, 15000)
-        if (resp.ok) {
-          const buf = Buffer.from(await resp.arrayBuffer())
-          if (isJpeg(buf)) return buf
+/** All known SlideShare CDN image widths, largest first. */
+const SIZES = [2048, 1024, 768, 638, 320]
+/** All known SlideShare CDN quality directories, best first. */
+const QUALITY_DIRS = ["95", "85", "75"]
+
+/**
+ * Build candidate URL variants for one page, strictly ordered by resolution
+ * (largest first), then by quality directory. Quality dirs actually seen in
+ * the page HTML are probed before the generic ones at each size.
+ */
+function buildCandidates(info: SlideInfo, pageNum: number): string[] {
+  const dirs = [...new Set([...info.qualityDirs, ...QUALITY_DIRS])]
+  const candidates: string[] = []
+  for (const size of SIZES) {
+    for (const dir of dirs) {
+      candidates.push(`${info.baseUrl}/${dir}/${info.titleSlug}-${pageNum}-${size}.jpg`)
+    }
+  }
+  return candidates
+}
+
+/** RIFF....WEBP container magic check. */
+function isWebp(buf: Buffer): boolean {
+  return (
+    buf.length > 12 &&
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x46 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45 &&
+    buf[10] === 0x42 &&
+    buf[11] === 0x50
+  )
+}
+
+/**
+ * Fetch a slide image, returning JPEG bytes. The CDN serves the highest-res
+ * (2048px) variants only as WebP regardless of the Accept header, so WebP
+ * responses are transcoded to high-quality JPEG via sharp.
+ */
+async function fetchJpeg(url: string): Promise<Buffer | null> {
+  for (let attempt = 0; attempt <= IMAGE_RETRIES; attempt++) {
+    try {
+      const resp = await fetchWithTimeout(url, { headers: { "User-Agent": UA, Accept: "image/jpeg,image/*" } }, 20000)
+      if (resp.ok) {
+        const buf = Buffer.from(await resp.arrayBuffer())
+        if (isJpeg(buf)) return buf
+        if (isWebp(buf)) {
+          try {
+            const sharp = (await import("sharp")).default
+            const jpeg = await sharp(buf).jpeg({ quality: 92 }).toBuffer()
+            if (isJpeg(jpeg)) return jpeg
+          } catch {
+            // transcoding failed: treat as missing variant
+          }
         }
-        break // non-OK or non-JPEG: try next candidate size instead of retrying
-      } catch {
-        // network error: retry with backoff
-        if (attempt < IMAGE_RETRIES) {
-          await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
-        }
+      }
+      return null // non-OK or unsupported format: this variant doesn't exist, don't retry
+    } catch {
+      // network error: retry with backoff
+      if (attempt < IMAGE_RETRIES) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
       }
     }
   }
   return null
 }
 
-/** Concurrency-limited parallel download of all slides, preserving order. */
+/**
+ * Probe page 1 across every size/quality combination to find the best variant
+ * the CDN actually serves for this deck. Returns the winning URL template
+ * parts so all remaining pages skip the probing entirely.
+ */
+async function resolveBestVariant(
+  info: SlideInfo,
+  log: Logger,
+): Promise<{ dir: string; size: number; firstPage: Buffer } | null> {
+  for (const url of buildCandidates(info, 1)) {
+    const buf = await fetchJpeg(url)
+    if (buf) {
+      const m = url.match(/\/(\d+)\/.+-1-(\d+)\.jpg$/)
+      const dir = m ? m[1] : QUALITY_DIRS[0]
+      const size = m ? Number.parseInt(m[2], 10) : SIZES[0]
+      log("success", `Best available quality: ${size}px (quality dir /${dir}/)`)
+      return { dir, size, firstPage: buf }
+    }
+  }
+  return null
+}
+
+/** Download a single slide at the resolved best variant, falling back to smaller sizes only if needed. */
+async function downloadSlide(info: SlideInfo, pageNum: number, bestDir: string, bestSize: number): Promise<Buffer | null> {
+  // Try the resolved best variant first.
+  const primary = `${info.baseUrl}/${bestDir}/${info.titleSlug}-${pageNum}-${bestSize}.jpg`
+  const buf = await fetchJpeg(primary)
+  if (buf) return buf
+
+  // Rare per-page miss: fall back through remaining candidates for this page.
+  for (const url of buildCandidates(info, pageNum)) {
+    if (url === primary) continue
+    const fallback = await fetchJpeg(url)
+    if (fallback) return fallback
+  }
+  return null
+}
+
+/** Concurrency-limited parallel download of all slides at the best available quality, preserving order. */
 async function downloadAllSlides(
   info: SlideInfo,
   log: Logger,
   progress: ProgressReporter,
 ): Promise<(Buffer | null)[]> {
-  const results: (Buffer | null)[] = new Array(info.maxPage).fill(null)
-  let completed = 0
-  let next = 0
+  // Resolve the highest-quality variant the CDN serves for this deck (probes page 1).
+  const best = await resolveBestVariant(info, log)
+  if (!best) {
+    log("warn", "Could not resolve any image variant for page 1")
+    return new Array(info.maxPage).fill(null)
+  }
 
+  const results: (Buffer | null)[] = new Array(info.maxPage).fill(null)
+  results[0] = best.firstPage
+  let completed = 1
+  progress(completed, info.maxPage, "Downloading slides")
+
+  let next = 1 // page 1 already downloaded by the probe
   const worker = async () => {
     while (next < info.maxPage) {
       const idx = next++
-      results[idx] = await downloadSlide(info.baseUrl, info.titleSlug, idx + 1)
+      results[idx] = await downloadSlide(info, idx + 1, best.dir, best.size)
       completed++
       progress(completed, info.maxPage, "Downloading slides")
     }
   }
 
-  const workers = Array.from({ length: Math.min(IMAGE_CONCURRENCY, info.maxPage) }, () => worker())
+  const workers = Array.from({ length: Math.min(IMAGE_CONCURRENCY, Math.max(info.maxPage - 1, 1)) }, () => worker())
   await Promise.all(workers)
 
   const failed = results.filter((r) => r === null).length

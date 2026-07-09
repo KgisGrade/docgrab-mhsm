@@ -20,6 +20,7 @@ interface SlideshareResult {
   format: OutputFormat
   catboxUrl?: string
   catboxExpiresAt?: number
+  fileBase64?: string
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
@@ -258,6 +259,7 @@ export async function downloadSlideshare(
       format: options.format,
       catboxUrl,
       catboxExpiresAt,
+      fileBase64: fileBuffer.toString("base64"),
     },
   }
 }

@@ -12,10 +12,22 @@ export interface GrabResult {
   format: OutputFormat
   catboxUrl?: string
   catboxExpiresAt?: number
+  /** Local blob URL built from inline file bytes — works regardless of server instance. */
+  blobUrl?: string
+}
+
+function safeFileName(title: string, format: OutputFormat): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80)
+  return `${slug || "document"}.${format}`
 }
 
 export function ResultCard({ result }: { result: GrabResult }) {
   const formatLabel = result.format.toUpperCase()
+  const downloadHref = result.blobUrl ?? `/api/file/${result.id}`
 
   return (
     <section
@@ -35,8 +47,8 @@ export function ResultCard({ result }: { result: GrabResult }) {
           </div>
         </div>
         <a
-          href={`/api/file/${result.id}`}
-          download
+          href={downloadHref}
+          download={safeFileName(result.title, result.format)}
           className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity shrink-0"
         >
           <Download className="size-4" aria-hidden="true" />

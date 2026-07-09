@@ -32,6 +32,13 @@ export interface ResultEvent {
   catboxUrl?: string
   /** Set when the file was stored on litterbox (anonymous tier) and will expire. */
   catboxExpiresAt?: number
+  /**
+   * Base64-encoded file bytes delivered inline with the result. Required on
+   * serverless hosting where /tmp is not shared between function instances,
+   * so a follow-up request to /api/file/[id] may land on an instance that
+   * never saw the file ("File not found or expired").
+   */
+  fileBase64?: string
 }
 
 export interface ErrorEvent {

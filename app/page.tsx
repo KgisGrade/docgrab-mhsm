@@ -8,7 +8,7 @@ export default function Home() {
         <header className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
-            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">docgrab v2</span>
+            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">docgrab</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground text-balance">
             Grab documents as PDF.
@@ -24,12 +24,15 @@ export default function Home() {
 
         <History />
 
-        <footer className="mt-auto pt-8 border-t border-border">
+        <footer className="mt-auto pt-8 border-t border-border flex flex-col items-center gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-xs font-mono text-muted-foreground/60">
             <span>slideshare · pdf / pptx pipeline</span>
             <span>scribd · headless chromium export</span>
             <span>local files auto-delete after 1h · catbox saves are permanent</span>
           </div>
+          <p className="text-xs font-mono text-muted-foreground/70 text-center">
+            Made by Mhsm with Claude Sonnet 4.5
+          </p>
         </footer>
       </div>
     </main>

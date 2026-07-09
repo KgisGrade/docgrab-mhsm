@@ -1,7 +1,10 @@
 import { buildPdfFromJpegs, isJpeg } from "./pdf"
-import { savePdf } from "./store"
+import { buildPptxFromJpegs } from "./pptx"
+import { saveFile } from "./store"
+import { uploadToCatbox } from "./catbox"
 import { fetchHtmlWithBrowser } from "./browser"
-import type { Logger, ProgressReporter } from "./types"
+import { slugify } from "./store"
+import type { Logger, ProgressReporter, DownloadOptions, OutputFormat } from "./types"
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -14,6 +17,8 @@ interface SlideshareResult {
   title: string
   pages: number
   size: string
+  format: OutputFormat
+  catboxUrl?: string
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
@@ -183,8 +188,9 @@ export async function downloadSlideshare(
   url: string,
   log: Logger,
   progress: ProgressReporter,
+  options: DownloadOptions = { format: "pdf", uploadToCatbox: false },
 ): Promise<{ result?: SlideshareResult; error?: string }> {
-  log("step", "Starting SlideShare pipeline")
+  log("step", `Starting SlideShare pipeline (output: ${options.format.toUpperCase()})`)
 
   const html = await fetchPageHtml(url, log)
   if (!html) {
@@ -210,22 +216,49 @@ export async function downloadSlideshare(
   }
   log("success", `Downloaded ${jpegs.length} slides successfully`)
 
-  log("step", "Assembling PDF document...")
-  const pdf = buildPdfFromJpegs(jpegs)
-  if (!pdf) {
-    return { error: "Failed to build PDF from downloaded slides." }
+  let fileBuffer: Buffer | null
+  if (options.format === "pptx") {
+    log("step", "Assembling PPTX presentation...")
+    fileBuffer = await buildPptxFromJpegs(jpegs)
+    if (!fileBuffer) {
+      return { error: "Failed to build PPTX from downloaded slides." }
+    }
+  } else {
+    log("step", "Assembling PDF document...")
+    fileBuffer = buildPdfFromJpegs(jpegs)
+    if (!fileBuffer) {
+      return { error: "Failed to build PDF from downloaded slides." }
+    }
   }
-  log("success", `PDF built: ${(pdf.length / 1024 / 1024).toFixed(1)} MB, ${jpegs.length} pages`)
+  const sizeMb = `${(fileBuffer.length / 1024 / 1024).toFixed(1)} MB`
+  log("success", `${options.format.toUpperCase()} built: ${sizeMb}, ${jpegs.length} pages`)
 
-  const id = await savePdf(pdf, title)
-  log("success", "PDF stored and ready for download")
+  const id = await saveFile(fileBuffer, title, options.format)
+  log("success", `${options.format.toUpperCase()} stored and ready for download`)
+
+  let catboxUrl: string | undefined
+  if (options.uploadToCatbox) {
+    const contentType =
+      options.format === "pptx"
+        ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        : "application/pdf"
+    const { url: uploaded } = await uploadToCatbox(
+      fileBuffer,
+      `${slugify(title)}.${options.format}`,
+      contentType,
+      log,
+    )
+    catboxUrl = uploaded
+  }
 
   return {
     result: {
       id,
       title,
       pages: jpegs.length,
-      size: `${(pdf.length / 1024 / 1024).toFixed(1)} MB`,
+      size: sizeMb,
+      format: options.format,
+      catboxUrl,
     },
   }
 }

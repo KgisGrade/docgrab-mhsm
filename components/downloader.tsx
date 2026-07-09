@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
-import { Link2, Loader2 } from "lucide-react"
+import { Link2, Loader2, Cloud } from "lucide-react"
 import { LogConsole, type LogEntry } from "./log-console"
 import { ResultCard, type GrabResult } from "./result-card"
-import type { StreamEvent } from "@/lib/types"
+import { addHistoryItem } from "@/lib/history"
+import type { StreamEvent, OutputFormat } from "@/lib/types"
 
 type Status = "idle" | "running" | "done" | "error"
 
@@ -17,14 +18,19 @@ function detectPlatformLabel(url: string): string | null {
 
 export function Downloader() {
   const [url, setUrl] = useState("")
+  const [format, setFormat] = useState<OutputFormat>("pdf")
+  const [saveToCatbox, setSaveToCatbox] = useState(false)
   const [status, setStatus] = useState<Status>("idle")
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [progress, setProgress] = useState<{ current: number; total: number; label: string } | null>(null)
   const [result, setResult] = useState<GrabResult | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const submittedUrlRef = useRef("")
 
   const platform = detectPlatformLabel(url)
   const isRunning = status === "running"
+  const pptxDisabled = platform === "scribd"
+  const effectiveFormat: OutputFormat = pptxDisabled ? "pdf" : format
 
   const addLog = useCallback((entry: LogEntry) => {
     setLogs((prev) => [...prev, entry])
@@ -47,7 +53,20 @@ export function Downloader() {
             pages: event.pages,
             size: event.size,
             platform: event.platform,
+            format: event.format,
+            catboxUrl: event.catboxUrl,
           })
+          if (event.catboxUrl) {
+            addHistoryItem({
+              title: event.title,
+              url: submittedUrlRef.current,
+              platform: event.platform,
+              format: event.format,
+              pages: event.pages,
+              size: event.size,
+              catboxUrl: event.catboxUrl,
+            })
+          }
           setProgress(null)
           setStatus("done")
           break
@@ -71,12 +90,13 @@ export function Downloader() {
     setLogs([])
     setResult(null)
     setProgress(null)
+    submittedUrlRef.current = url.trim()
 
     try {
       const resp = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: url.trim(), format: effectiveFormat, uploadToCatbox: saveToCatbox }),
         signal: controller.signal,
       })
 
@@ -132,7 +152,7 @@ export function Downloader() {
       })
       setStatus("error")
     }
-  }, [url, isRunning, addLog, handleEvent])
+  }, [url, isRunning, addLog, handleEvent, effectiveFormat, saveToCatbox])
 
   return (
     <div className="flex flex-col gap-4">
@@ -178,6 +198,58 @@ export function Downloader() {
           )}
         </button>
       </form>
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+        <fieldset className="flex items-center gap-1" disabled={isRunning}>
+          <legend className="sr-only">Output format</legend>
+          <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground/60 mr-2">Format</span>
+          {(["pdf", "pptx"] as OutputFormat[]).map((f) => {
+            const disabled = f === "pptx" && pptxDisabled
+            const active = effectiveFormat === f
+            return (
+              <label
+                key={f}
+                className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-mono uppercase tracking-wider transition-colors ${
+                  active
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                title={disabled ? "PPTX is only available for SlideShare links" : undefined}
+              >
+                <input
+                  type="radio"
+                  name="format"
+                  value={f}
+                  checked={active}
+                  disabled={disabled}
+                  onChange={() => setFormat(f)}
+                  className="sr-only"
+                />
+                {f}
+              </label>
+            )
+          })}
+          {pptxDisabled && (
+            <span className="text-[10px] font-mono text-muted-foreground/50 ml-1">scribd: pdf only</span>
+          )}
+        </fieldset>
+
+        <label
+          className={`flex items-center gap-2 cursor-pointer select-none ${isRunning ? "opacity-60 pointer-events-none" : ""}`}
+        >
+          <input
+            type="checkbox"
+            checked={saveToCatbox}
+            onChange={(e) => setSaveToCatbox(e.target.checked)}
+            disabled={isRunning}
+            className="size-3.5 rounded border-border bg-card accent-primary"
+          />
+          <span className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
+            <Cloud className="size-3.5" aria-hidden="true" />
+            Save to catbox.moe (keeps file in History)
+          </span>
+        </label>
+      </div>
 
       {result && status === "done" && <ResultCard result={result} />}
 

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server"
 import { downloadSlideshare } from "@/lib/slideshare"
 import { downloadScribd } from "@/lib/scribd"
-import type { StreamEvent, Logger, ProgressReporter } from "@/lib/types"
+import type { StreamEvent, Logger, ProgressReporter, DownloadOptions, OutputFormat } from "@/lib/types"
 
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
@@ -31,7 +31,7 @@ function detectPlatform(url: string): "slideshare" | "scribd" | null {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { url?: string }
+  let body: { url?: string; format?: string; uploadToCatbox?: boolean }
   try {
     body = await request.json()
   } catch {
@@ -46,6 +46,12 @@ export async function POST(request: NextRequest) {
   const platform = detectPlatform(url)
   if (!platform) {
     return Response.json({ error: "Unsupported platform. Use a SlideShare or Scribd URL." }, { status: 400 })
+  }
+
+  const format: OutputFormat = body.format === "pptx" ? "pptx" : "pdf"
+  const options: DownloadOptions = {
+    format,
+    uploadToCatbox: body.uploadToCatbox === true,
   }
 
   const encoder = new TextEncoder()
@@ -75,8 +81,8 @@ export async function POST(request: NextRequest) {
 
         const { result, error } =
           platform === "slideshare"
-            ? await downloadSlideshare(url, log, progress)
-            : await downloadScribd(url, log, progress)
+            ? await downloadSlideshare(url, log, progress, options)
+            : await downloadScribd(url, log, progress, options)
 
         if (error || !result) {
           log("error", error ?? "Unknown failure")

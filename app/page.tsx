@@ -1,4 +1,5 @@
 import { Downloader } from "@/components/downloader"
+import { History } from "@/components/history"
 
 export default function Home() {
   return (
@@ -21,11 +22,13 @@ export default function Home() {
 
         <Downloader />
 
+        <History />
+
         <footer className="mt-auto pt-8 border-t border-border">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-xs font-mono text-muted-foreground/60">
-            <span>slideshare · cdn image pipeline</span>
+            <span>slideshare · pdf / pptx pipeline</span>
             <span>scribd · headless chromium export</span>
-            <span>files auto-delete after 1h</span>
+            <span>local files auto-delete after 1h · catbox saves are permanent</span>
           </div>
         </footer>
       </div>

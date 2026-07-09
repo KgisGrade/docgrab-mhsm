@@ -1,20 +1,27 @@
-import { savePdf } from "./store"
+import { saveFile, slugify } from "./store"
 import { launchBrowser } from "./browser"
-import type { Logger, ProgressReporter } from "./types"
+import { uploadToCatbox } from "./catbox"
+import type { Logger, ProgressReporter, DownloadOptions } from "./types"
 
 interface ScribdResult {
   id: string
   title: string
   pages: number
   size: string
+  format: "pdf"
+  catboxUrl?: string
 }
 
 export async function downloadScribd(
   url: string,
   log: Logger,
   progress: ProgressReporter,
+  options: DownloadOptions = { format: "pdf", uploadToCatbox: false },
 ): Promise<{ result?: ScribdResult; error?: string }> {
   log("step", "Starting Scribd pipeline")
+  if (options.format === "pptx") {
+    log("warn", "PPTX is not supported for Scribd documents — exporting as PDF instead")
+  }
 
   const match = url.match(/scribd\.com\/(?:document|doc|presentation)\/(\d+)/)
   if (!match) {
@@ -191,17 +198,26 @@ export async function downloadScribd(
     if (pdfBuffer.length < 1000) {
       return { error: "PDF export returned an empty result." }
     }
-    log("success", `PDF exported: ${(pdfBuffer.length / 1024 / 1024).toFixed(1)} MB`)
+    const sizeMb = `${(pdfBuffer.length / 1024 / 1024).toFixed(1)} MB`
+    log("success", `PDF exported: ${sizeMb}`)
 
-    const id = await savePdf(pdfBuffer, title)
+    const id = await saveFile(pdfBuffer, title, "pdf")
     log("success", "PDF stored and ready for download")
+
+    let catboxUrl: string | undefined
+    if (options.uploadToCatbox) {
+      const { url: uploaded } = await uploadToCatbox(pdfBuffer, `${slugify(title)}.pdf`, "application/pdf", log)
+      catboxUrl = uploaded
+    }
 
     return {
       result: {
         id,
         title,
         pages: pageCount,
-        size: `${(pdfBuffer.length / 1024 / 1024).toFixed(1)} MB`,
+        size: sizeMb,
+        format: "pdf",
+        catboxUrl,
       },
     }
   } catch (e) {

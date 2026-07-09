@@ -14,6 +14,13 @@ export interface ProgressEvent {
   label: string
 }
 
+export type OutputFormat = "pdf" | "pptx"
+
+export interface DownloadOptions {
+  format: OutputFormat
+  uploadToCatbox: boolean
+}
+
 export interface ResultEvent {
   type: "result"
   id: string
@@ -21,6 +28,8 @@ export interface ResultEvent {
   pages: number
   size: string
   platform: "slideshare" | "scribd"
+  format: OutputFormat
+  catboxUrl?: string
 }
 
 export interface ErrorEvent {

@@ -182,8 +182,11 @@ function isWebp(buf: Buffer): boolean {
  * Fetch a slide image, returning JPEG bytes. The CDN serves the highest-res
  * (2048px) variants only as WebP regardless of the Accept header, so WebP
  * responses are transcoded to high-quality JPEG via sharp.
+ *
+ * `trace` (used only during the page-1 probe) reports why a candidate failed
+ * so quality regressions are visible in the process log instead of silent.
  */
-async function fetchJpeg(url: string): Promise<Buffer | null> {
+async function fetchJpeg(url: string, trace?: (reason: string) => void): Promise<Buffer | null> {
   for (let attempt = 0; attempt <= IMAGE_RETRIES; attempt++) {
     try {
       const resp = await fetchWithTimeout(url, { headers: { "User-Agent": getUserAgent(), Accept: "image/jpeg,image/*" } }, 20000)
@@ -195,16 +198,23 @@ async function fetchJpeg(url: string): Promise<Buffer | null> {
             const sharp = (await import("sharp")).default
             const jpeg = await sharp(buf).jpeg({ quality: 92 }).toBuffer()
             if (isJpeg(jpeg)) return jpeg
-          } catch {
-            // transcoding failed: treat as missing variant
+            trace?.("webp transcode produced non-jpeg output")
+          } catch (err) {
+            trace?.(`webp transcode failed: ${err instanceof Error ? err.message : String(err)}`)
           }
+        } else {
+          trace?.(`unrecognized image format (first bytes: ${buf.subarray(0, 4).toString("hex")})`)
         }
+      } else {
+        trace?.(`HTTP ${resp.status}`)
       }
       return null // non-OK or unsupported format: this variant doesn't exist, don't retry
-    } catch {
+    } catch (err) {
       // network error: retry with backoff
       if (attempt < IMAGE_RETRIES) {
         await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
+      } else {
+        trace?.(`network error: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
   }
@@ -221,11 +231,15 @@ async function resolveBestVariant(
   log: Logger,
 ): Promise<{ dir: string; size: number; firstPage: Buffer } | null> {
   for (const url of buildCandidates(info, 1)) {
-    const buf = await fetchJpeg(url)
+    const variant = url.match(/\/(\d+)\/.+-1-(\d+)\.jpg$/)
+    const label = variant ? `${variant[2]}px (/${variant[1]}/)` : url
+    const buf = await fetchJpeg(url, (reason) => {
+      // Plain 404s just mean the CDN never generated that variant — not a failure.
+      if (reason !== "HTTP 404") log("warn", `Variant ${label} unavailable: ${reason}`)
+    })
     if (buf) {
-      const m = url.match(/\/(\d+)\/.+-1-(\d+)\.jpg$/)
-      const dir = m ? m[1] : QUALITY_DIRS[0]
-      const size = m ? Number.parseInt(m[2], 10) : SIZES[0]
+      const dir = variant ? variant[1] : QUALITY_DIRS[0]
+      const size = variant ? Number.parseInt(variant[2], 10) : SIZES[0]
       log("success", `Best available quality: ${size}px (quality dir /${dir}/)`)
       return { dir, size, firstPage: buf }
     }

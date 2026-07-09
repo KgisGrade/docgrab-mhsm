@@ -1,5 +1,6 @@
 import { buildPdfFromJpegs, isJpeg } from "./pdf"
 import { savePdf } from "./store"
+import { fetchHtmlWithBrowser } from "./browser"
 import type { Logger, ProgressReporter } from "./types"
 
 const UA =
@@ -55,13 +56,29 @@ async function fetchPageHtml(url: string, log: Logger): Promise<string | null> {
         45000,
       )
       if (resp.ok) {
-        log("success", "Reader proxy returned page HTML")
-        return await resp.text()
+        const html = await resp.text()
+        if (html.includes("slidesharecdn")) {
+          log("success", "Reader proxy returned page HTML")
+          return html
+        }
+        log("warn", "Reader proxy returned page without slide data")
+        break
       }
       log("warn", `Reader proxy returned HTTP ${resp.status}`)
     } catch (e) {
       log("warn", `Reader proxy attempt ${attempt} failed: ${e instanceof Error ? e.message : "unknown error"}`)
     }
+  }
+
+  // Attempt 3: real headless Chrome — genuine browser TLS fingerprint, passes Cloudflare
+  log("step", "Falling back to headless Chrome (real browser fingerprint)...")
+  const browserHtml = await fetchHtmlWithBrowser(url, log)
+  if (browserHtml && browserHtml.includes("slidesharecdn")) {
+    log("success", "Headless Chrome retrieved the page (Cloudflare bypassed)")
+    return browserHtml
+  }
+  if (browserHtml) {
+    log("warn", "Headless Chrome loaded a page without slide data")
   }
   return null
 }

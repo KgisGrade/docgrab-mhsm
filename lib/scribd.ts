@@ -1,4 +1,5 @@
 import { savePdf } from "./store"
+import { launchBrowser } from "./browser"
 import type { Logger, ProgressReporter } from "./types"
 
 interface ScribdResult {
@@ -6,52 +7,6 @@ interface ScribdResult {
   title: string
   pages: number
   size: string
-}
-
-/** Locate a Chrome/Chromium executable: local system first, then serverless chromium. */
-async function launchBrowser(log: Logger) {
-  const puppeteer = await import("puppeteer-core")
-
-  const localCandidates = [
-    process.env.CHROME_PATH,
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/opt/homebrew/bin/chromium",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  ].filter(Boolean) as string[]
-
-  const { existsSync } = await import("fs")
-  const commonArgs = [
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--hide-scrollbars",
-    "--disable-blink-features=AutomationControlled",
-  ]
-
-  for (const path of localCandidates) {
-    if (existsSync(path)) {
-      log("info", `Launching local Chromium: ${path}`)
-      return puppeteer.launch({
-        executablePath: path,
-        headless: true,
-        args: commonArgs,
-        defaultViewport: { width: 1600, height: 2200 },
-      })
-    }
-  }
-
-  log("info", "No local Chromium found, using serverless chromium build...")
-  const chromium = (await import("@sparticuz/chromium")).default
-  const executablePath = await chromium.executablePath()
-  return puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: [...chromium.args, ...commonArgs],
-    defaultViewport: { width: 1600, height: 2200 },
-  })
 }
 
 export async function downloadScribd(

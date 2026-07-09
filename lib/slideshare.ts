@@ -4,10 +4,8 @@ import { saveFile } from "./store"
 import { uploadToCatbox } from "./catbox"
 import { fetchHtmlWithBrowser } from "./browser"
 import { slugify } from "./store"
+import { getUserAgent } from "./user-agent"
 import type { Logger, ProgressReporter, DownloadOptions, OutputFormat } from "./types"
-
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 const IMAGE_CONCURRENCY = 8
 const IMAGE_RETRIES = 2
@@ -38,7 +36,7 @@ async function fetchPageHtml(url: string, log: Logger): Promise<string | null> {
   // Attempt 1: direct fetch (fastest when not blocked)
   try {
     log("info", "Fetching page directly...")
-    const resp = await fetchWithTimeout(url, { headers: { "User-Agent": UA, Accept: "text/html" } }, 20000)
+    const resp = await fetchWithTimeout(url, { headers: { "User-Agent": getUserAgent(), Accept: "text/html" } }, 20000)
     if (resp.ok) {
       const html = await resp.text()
       if (html.includes("slidesharecdn")) {
@@ -188,7 +186,7 @@ function isWebp(buf: Buffer): boolean {
 async function fetchJpeg(url: string): Promise<Buffer | null> {
   for (let attempt = 0; attempt <= IMAGE_RETRIES; attempt++) {
     try {
-      const resp = await fetchWithTimeout(url, { headers: { "User-Agent": UA, Accept: "image/jpeg,image/*" } }, 20000)
+      const resp = await fetchWithTimeout(url, { headers: { "User-Agent": getUserAgent(), Accept: "image/jpeg,image/*" } }, 20000)
       if (resp.ok) {
         const buf = Buffer.from(await resp.arrayBuffer())
         if (isJpeg(buf)) return buf

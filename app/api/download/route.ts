@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server"
 import { downloadSlideshare } from "@/lib/slideshare"
 import { downloadScribd } from "@/lib/scribd"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { registerDownload } from "@/lib/user-agent"
 import type { StreamEvent, Logger, ProgressReporter, DownloadOptions, OutputFormat } from "@/lib/types"
 
 export const maxDuration = 300
@@ -89,6 +90,9 @@ export async function POST(request: NextRequest) {
       try {
         log("info", `Platform detected: ${platform}`)
         log("info", `Target URL: ${url}`)
+
+        // Count this download for User-Agent rotation (rotates every 50).
+        registerDownload()
 
         const { result, error } =
           platform === "slideshare"

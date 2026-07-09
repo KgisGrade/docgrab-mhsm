@@ -28,6 +28,15 @@ export async function uploadToCatbox(
     return { error: msg }
   }
 
+  // catbox.moe disabled anonymous uploads — an account userhash is required.
+  const userhash = process.env.CATBOX_USERHASH?.trim()
+  if (!userhash) {
+    const msg =
+      "catbox.moe upload failed: no CATBOX_USERHASH configured. catbox.moe no longer allows anonymous uploads — create a free account at catbox.moe, copy the userhash from your account page, and add it as the CATBOX_USERHASH environment variable."
+    log("error", msg)
+    return { error: msg }
+  }
+
   log("step", `Uploading ${sizeMb.toFixed(1)} MB to catbox.moe...`)
 
   const controller = new AbortController()
@@ -36,6 +45,7 @@ export async function uploadToCatbox(
   try {
     const form = new FormData()
     form.append("reqtype", "fileupload")
+    form.append("userhash", userhash)
     form.append("fileToUpload", new Blob([new Uint8Array(buffer)], { type: contentType }), fileName)
 
     const resp = await fetch(CATBOX_API, {
@@ -47,7 +57,11 @@ export async function uploadToCatbox(
     const text = (await resp.text()).trim()
 
     if (!resp.ok) {
-      const msg = `catbox.moe upload failed (HTTP ${resp.status})`
+      const detail = text ? ` — ${text.slice(0, 120)}` : ""
+      const msg =
+        resp.status === 412 || /not signed in|invalid uploader/i.test(text)
+          ? `catbox.moe rejected the upload (HTTP ${resp.status}${detail}). Check that CATBOX_USERHASH is a valid userhash from your catbox.moe account page.`
+          : `catbox.moe upload failed (HTTP ${resp.status}${detail})`
       log("error", msg)
       return { error: msg }
     }

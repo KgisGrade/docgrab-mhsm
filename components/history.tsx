@@ -10,6 +10,11 @@ function formatDate(ts: number): string {
     d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
 }
 
+function expiryLabel(expiresAt: number): string {
+  const hoursLeft = Math.max(0, Math.round((expiresAt - Date.now()) / (60 * 60 * 1000)))
+  return hoursLeft >= 1 ? `expires in ${hoursLeft}h` : "expiring soon"
+}
+
 export function History() {
   const [items, setItems] = useState<HistoryItem[]>([])
   const [mounted, setMounted] = useState(false)
@@ -68,6 +73,7 @@ export function History() {
                 <p className="text-sm text-foreground truncate">{item.title}</p>
                 <p className="text-[11px] font-mono text-muted-foreground/70 mt-0.5">
                   {item.platform} · {item.format.toUpperCase()} · {item.pages}p · {item.size} · {formatDate(item.savedAt)}
+                  {item.expiresAt ? ` · ${expiryLabel(item.expiresAt)}` : ""}
                 </p>
               </div>
               <a

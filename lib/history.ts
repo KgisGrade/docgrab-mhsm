@@ -17,6 +17,8 @@ export interface HistoryItem {
   size: string
   catboxUrl: string
   savedAt: number
+  /** Present when stored on litterbox — the link dies after this time. */
+  expiresAt?: number
 }
 
 export function getHistory(): HistoryItem[] {
@@ -25,7 +27,12 @@ export function getHistory(): HistoryItem[] {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as HistoryItem[]) : []
+    if (!Array.isArray(parsed)) return []
+    // Drop entries whose litterbox links have already expired.
+    const now = Date.now()
+    const items = (parsed as HistoryItem[]).filter((h) => !h.expiresAt || h.expiresAt > now)
+    if (items.length !== parsed.length) persist(items)
+    return items
   } catch {
     return []
   }

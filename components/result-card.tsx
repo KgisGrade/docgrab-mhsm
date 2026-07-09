@@ -11,6 +11,7 @@ export interface GrabResult {
   platform: "slideshare" | "scribd"
   format: OutputFormat
   catboxUrl?: string
+  catboxExpiresAt?: number
 }
 
 export function ResultCard({ result }: { result: GrabResult }) {
@@ -52,6 +53,11 @@ export function ResultCard({ result }: { result: GrabResult }) {
         >
           <Cloud className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate">{result.catboxUrl}</span>
+          {result.catboxExpiresAt && (
+            <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+              expires 72h
+            </span>
+          )}
         </a>
       )}
     </section>

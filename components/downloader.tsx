@@ -55,6 +55,7 @@ export function Downloader() {
             platform: event.platform,
             format: event.format,
             catboxUrl: event.catboxUrl,
+            catboxExpiresAt: event.catboxExpiresAt,
           })
           if (event.catboxUrl) {
             addHistoryItem({
@@ -65,6 +66,7 @@ export function Downloader() {
               pages: event.pages,
               size: event.size,
               catboxUrl: event.catboxUrl,
+              expiresAt: event.catboxExpiresAt,
             })
           }
           setProgress(null)

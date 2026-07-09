@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { ClickRipple } from '@/components/click-ripple'
 import './globals.css'
 
 const _geistSans = Geist({ subsets: ['latin'] })
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#141416',
+  themeColor: '#191919',
 }
 
 export default function RootLayout({
@@ -27,6 +28,7 @@ export default function RootLayout({
     <html lang="en" className="dark bg-background">
       <body className="antialiased font-sans">
         {children}
+        <ClickRipple />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

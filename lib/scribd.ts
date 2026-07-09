@@ -10,6 +10,7 @@ interface ScribdResult {
   size: string
   format: "pdf"
   catboxUrl?: string
+  catboxExpiresAt?: number
 }
 
 export async function downloadScribd(
@@ -205,9 +206,11 @@ export async function downloadScribd(
     log("success", "PDF stored and ready for download")
 
     let catboxUrl: string | undefined
+    let catboxExpiresAt: number | undefined
     if (options.uploadToCatbox) {
-      const { url: uploaded } = await uploadToCatbox(pdfBuffer, `${slugify(title)}.pdf`, "application/pdf", log)
-      catboxUrl = uploaded
+      const uploaded = await uploadToCatbox(pdfBuffer, `${slugify(title)}.pdf`, "application/pdf", log)
+      catboxUrl = uploaded.url
+      catboxExpiresAt = uploaded.expiresAt
     }
 
     return {
@@ -218,6 +221,7 @@ export async function downloadScribd(
         size: sizeMb,
         format: "pdf",
         catboxUrl,
+        catboxExpiresAt,
       },
     }
   } catch (e) {

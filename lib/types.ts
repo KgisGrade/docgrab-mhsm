@@ -30,6 +30,8 @@ export interface ResultEvent {
   platform: "slideshare" | "scribd"
   format: OutputFormat
   catboxUrl?: string
+  /** Set when the file was stored on litterbox (anonymous tier) and will expire. */
+  catboxExpiresAt?: number
 }
 
 export interface ErrorEvent {

@@ -19,6 +19,7 @@ interface SlideshareResult {
   size: string
   format: OutputFormat
   catboxUrl?: string
+  catboxExpiresAt?: number
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
@@ -237,18 +238,15 @@ export async function downloadSlideshare(
   log("success", `${options.format.toUpperCase()} stored and ready for download`)
 
   let catboxUrl: string | undefined
+  let catboxExpiresAt: number | undefined
   if (options.uploadToCatbox) {
     const contentType =
       options.format === "pptx"
         ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         : "application/pdf"
-    const { url: uploaded } = await uploadToCatbox(
-      fileBuffer,
-      `${slugify(title)}.${options.format}`,
-      contentType,
-      log,
-    )
-    catboxUrl = uploaded
+    const uploaded = await uploadToCatbox(fileBuffer, `${slugify(title)}.${options.format}`, contentType, log)
+    catboxUrl = uploaded.url
+    catboxExpiresAt = uploaded.expiresAt
   }
 
   return {
@@ -259,6 +257,7 @@ export async function downloadSlideshare(
       size: sizeMb,
       format: options.format,
       catboxUrl,
+      catboxExpiresAt,
     },
   }
 }

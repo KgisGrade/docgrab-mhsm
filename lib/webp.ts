@@ -12,9 +12,17 @@
  * disk (never fetched at runtime) and reuse the compiled modules.
  */
 import { readFile } from "node:fs/promises"
-import { createRequire } from "node:module"
+import path from "node:path"
 
-const require = createRequire(import.meta.url)
+// Hidden dynamic import: Turbopack statically analyzes literal `import()`
+// specifiers and tries to bundle @jsquash's internal .wasm loaders, which it
+// mangles into broken modules ("Can't resolve 'a'"). Wrapping import in a
+// `new Function` makes the specifier opaque to the bundler, so Node loads the
+// package from node_modules at runtime exactly as it does under plain `node`.
+const nodeImport: (specifier: string) => Promise<any> = new Function(
+  "specifier",
+  "return import(specifier)",
+) as never
 
 let initPromise: Promise<{
   decodeWebp: (data: ArrayBuffer) => Promise<ImageData>
@@ -25,12 +33,25 @@ async function getCodecs() {
   if (!initPromise) {
     initPromise = (async () => {
       const [webpDecode, jpegEncode] = await Promise.all([
-        import("@jsquash/webp/decode.js"),
-        import("@jsquash/jpeg/encode.js"),
+        nodeImport("@jsquash/webp/decode.js"),
+        nodeImport("@jsquash/jpeg/encode.js"),
       ])
 
-      const webpWasmPath = require.resolve("@jsquash/webp/codec/dec/webp_dec.wasm")
-      const jpegWasmPath = require.resolve("@jsquash/jpeg/codec/enc/mozjpeg_enc.wasm")
+      // Read the .wasm binaries from disk at runtime. Don't use
+      // require.resolve here: under Turbopack it returns virtual
+      // "[project]/..." paths that don't exist on the real filesystem.
+      // process.cwd() is a real path in dev, and in Vercel's serverless
+      // runtime the traced node_modules keep the same relative layout.
+      const webpWasmPath = path.join(process.cwd(), "node_modules", "@jsquash", "webp", "codec", "dec", "webp_dec.wasm")
+      const jpegWasmPath = path.join(
+        process.cwd(),
+        "node_modules",
+        "@jsquash",
+        "jpeg",
+        "codec",
+        "enc",
+        "mozjpeg_enc.wasm",
+      )
 
       const [webpModule, jpegModule] = await Promise.all([
         WebAssembly.compile(await readFile(webpWasmPath)),

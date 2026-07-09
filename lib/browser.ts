@@ -1,3 +1,4 @@
+import { getUserAgent } from "./user-agent"
 import type { Logger } from "./types"
 
 /**
@@ -35,7 +36,9 @@ export async function launchBrowser(log: Logger) {
         executablePath: path,
         headless: true,
         args: commonArgs,
-        defaultViewport: { width: 1600, height: 2200 },
+        // deviceScaleFactor: 2 renders pages at 2x resolution so image-based
+        // documents (e.g. Scribd) export as crisp, high-quality PDFs.
+        defaultViewport: { width: 1600, height: 2200, deviceScaleFactor: 2 },
       })
     }
   }
@@ -47,7 +50,7 @@ export async function launchBrowser(log: Logger) {
     executablePath,
     headless: true,
     args: [...chromium.args, ...commonArgs],
-    defaultViewport: { width: 1600, height: 2200 },
+    defaultViewport: { width: 1600, height: 2200, deviceScaleFactor: 2 },
   })
 }
 
@@ -60,6 +63,7 @@ export async function fetchHtmlWithBrowser(url: string, log: Logger, timeoutMs =
   try {
     browser = await launchBrowser(log)
     const page = await browser.newPage()
+    await page.setUserAgent(getUserAgent())
     page.setDefaultTimeout(timeoutMs)
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs })
     // Give Cloudflare's JS challenge a moment to auto-resolve if present

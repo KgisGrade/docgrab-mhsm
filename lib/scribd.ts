@@ -1,6 +1,7 @@
 import { saveFile, slugify } from "./store"
 import { launchBrowser } from "./browser"
 import { uploadToCatbox } from "./catbox"
+import { getUserAgent } from "./user-agent"
 import type { Logger, ProgressReporter, DownloadOptions } from "./types"
 
 interface ScribdResult {
@@ -50,6 +51,7 @@ export async function downloadScribd(
     log("step", "Launching headless browser...")
     browser = await launchBrowser(log)
     const page = await browser.newPage()
+    await page.setUserAgent(getUserAgent())
     page.setDefaultTimeout(60000)
 
     log("info", `Loading embed page: ${embedUrl}`)

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server"
 import { downloadSlideshare } from "@/lib/slideshare"
 import { downloadScribd } from "@/lib/scribd"
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
+import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import type { StreamEvent, Logger, ProgressReporter, DownloadOptions, OutputFormat } from "@/lib/types"
 
 export const maxDuration = 300
@@ -32,8 +32,7 @@ function detectPlatform(url: string): "slideshare" | "scribd" | null {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = getClientIp(request.headers)
-  const limit = checkRateLimit(ip)
+  const limit = checkRateLimit(getClientKey(request.headers))
   if (!limit.allowed) {
     return Response.json(
       {

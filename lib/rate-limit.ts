@@ -38,18 +38,18 @@ export interface RateLimitResult {
   retryAfterSeconds: number
 }
 
-export function checkRateLimit(ip: string): RateLimitResult {
+export function checkRateLimit(clientKey: string): RateLimitResult {
   const now = Date.now()
   sweep(now)
 
-  let win = windows.get(ip)
+  let win = windows.get(clientKey)
   if (!win) {
-    // Refuse to track new IPs past the cap rather than allowing unbounded memory.
+    // Refuse to track new clients past the cap rather than allowing unbounded memory.
     if (windows.size >= MAX_TRACKED_IPS) {
       return { allowed: false, remaining: 0, retryAfterSeconds: 60 }
     }
     win = { hits: [] }
-    windows.set(ip, win)
+    windows.set(clientKey, win)
   }
 
   win.hits = win.hits.filter((t) => now - t < WINDOW_MS)
@@ -72,4 +72,28 @@ export function getClientIp(headers: Headers): string {
     if (first) return first
   }
   return headers.get("x-real-ip")?.trim() || "unknown"
+}
+
+/**
+ * Build a composite client fingerprint from IP + User-Agent.
+ *
+ * A raw IP is trivially spoofable via forged x-forwarded-for headers, and many
+ * users legitimately share one IP (NAT, corporate proxies). Folding in the
+ * User-Agent makes the key harder to forge consistently and reduces collateral
+ * blocking of unrelated users behind the same IP. It is defense-in-depth, not a
+ * cryptographic identity — an attacker can still rotate both values.
+ */
+export function getClientKey(headers: Headers): string {
+  const ip = getClientIp(headers)
+  const ua = headers.get("user-agent")?.trim() || "no-ua"
+  return `${ip}::${djb2(ua)}`
+}
+
+/** Small, fast non-crypto hash to keep the UA portion compact and bounded. */
+function djb2(str: string): string {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i)
+  }
+  return (hash >>> 0).toString(36)
 }

@@ -2,6 +2,64 @@ import { Downloader } from "@/components/downloader"
 import { History } from "@/components/history"
 
 const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/KgisGrade/docgrab-mhsm"
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://docgrab.vercel.app"
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      name: "DocGrab",
+      url: SITE_URL,
+      applicationCategory: "UtilitiesApplication",
+      operatingSystem: "Any",
+      browserRequirements: "Requires JavaScript. Requires a modern web browser.",
+      description:
+        "Download SlideShare presentations and Scribd documents as high-quality PDF files for free. No signup, no watermark.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      featureList: [
+        "Download SlideShare presentations as PDF or PPTX",
+        "Download Scribd documents as PDF",
+        "High-quality, watermark-free output",
+        "Live process log",
+        "No account required",
+      ],
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "How do I download a SlideShare presentation as a PDF?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Copy the SlideShare presentation URL, paste it into DocGrab, and click download. DocGrab fetches every slide at the highest available quality and rebuilds it into a clean PDF you can save instantly.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can I download Scribd documents for free?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. Paste any public Scribd document link into DocGrab and it exports the full document as a PDF for free, with no signup and no watermark.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Is DocGrab free to use?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "DocGrab is completely free. There is no account, no subscription, and no watermark on your downloaded files.",
+          },
+        },
+      ],
+    },
+  ],
+}
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -14,6 +72,7 @@ function GithubIcon({ className }: { className?: string }) {
 export default function Home() {
   return (
     <main className="relative z-10 min-h-dvh flex flex-col">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:py-24 flex-1 flex flex-col gap-8">
         <header className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
@@ -30,7 +89,7 @@ export default function Home() {
             </a>
           </div>
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground text-balance">
-            Grab documents as PDF.
+            Download SlideShare & Scribd as PDF.
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-md text-pretty">
             {

@@ -4,7 +4,7 @@ import path from "path"
 import os from "os"
 import crypto from "crypto"
 
-const STORE_DIR = path.join(os.tmpdir(), "docgrab")
+const STORE_DIR = path.join(os.tmpdir(), "docgrab-store")
 const MAX_AGE_MS = 60 * 60 * 1000 // 1 hour
 
 async function ensureDir() {

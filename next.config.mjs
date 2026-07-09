@@ -3,7 +3,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'sharp'],
+  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium', '@jsquash/webp', '@jsquash/jpeg'],
+  outputFileTracingIncludes: {
+    '/api/download': [
+      './node_modules/@jsquash/webp/codec/dec/*.wasm',
+      './node_modules/@jsquash/jpeg/codec/enc/*.wasm',
+    ],
+  },
   images: {
     unoptimized: true,
   },

@@ -5,6 +5,7 @@ import { uploadToCatbox } from "./catbox"
 import { fetchHtmlWithBrowser } from "./browser"
 import { slugify } from "./store"
 import { getUserAgent } from "./user-agent"
+import { webpToJpeg } from "./webp"
 import type { Logger, ProgressReporter, DownloadOptions, OutputFormat } from "./types"
 
 const IMAGE_CONCURRENCY = 8
@@ -181,7 +182,8 @@ function isWebp(buf: Buffer): boolean {
 /**
  * Fetch a slide image, returning JPEG bytes. The CDN serves the highest-res
  * (2048px) variants only as WebP regardless of the Accept header, so WebP
- * responses are transcoded to high-quality JPEG via sharp.
+ * responses are transcoded to high-quality JPEG via a pure-WASM codec that
+ * works identically on local and serverless runtimes (no native deps).
  *
  * `trace` (used only during the page-1 probe) reports why a candidate failed
  * so quality regressions are visible in the process log instead of silent.
@@ -194,14 +196,9 @@ async function fetchJpeg(url: string, trace?: (reason: string) => void): Promise
         const buf = Buffer.from(await resp.arrayBuffer())
         if (isJpeg(buf)) return buf
         if (isWebp(buf)) {
-          try {
-            const sharp = (await import("sharp")).default
-            const jpeg = await sharp(buf).jpeg({ quality: 92 }).toBuffer()
-            if (isJpeg(jpeg)) return jpeg
-            trace?.("webp transcode produced non-jpeg output")
-          } catch (err) {
-            trace?.(`webp transcode failed: ${err instanceof Error ? err.message : String(err)}`)
-          }
+          const jpeg = await webpToJpeg(buf, 92)
+          if (jpeg && isJpeg(jpeg)) return jpeg
+          trace?.("webp transcode failed")
         } else {
           trace?.(`unrecognized image format (first bytes: ${buf.subarray(0, 4).toString("hex")})`)
         }

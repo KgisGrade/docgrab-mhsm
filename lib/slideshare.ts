@@ -357,7 +357,7 @@ export async function downloadSlideshare(
       options.format === "pptx"
         ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         : "application/pdf"
-    const uploaded = await uploadToCatbox(fileBuffer, `${slugify(title)}.${options.format}`, contentType, log)
+    const uploaded = await uploadToCatbox(fileBuffer, `${slugify(title)}.${options.format}`, contentType, log, options.catboxUserhash)
     catboxUrl = uploaded.url
     catboxExpiresAt = uploaded.expiresAt
   }

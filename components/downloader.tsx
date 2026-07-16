@@ -20,6 +20,7 @@ export function Downloader() {
   const [url, setUrl] = useState("")
   const [format, setFormat] = useState<OutputFormat>("pdf")
   const [saveToCatbox, setSaveToCatbox] = useState(false)
+  const [catboxUserhash, setCatboxUserhash] = useState("")
   const [status, setStatus] = useState<Status>("idle")
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [progress, setProgress] = useState<{ current: number; total: number; label: string } | null>(null)
@@ -118,7 +119,12 @@ export function Downloader() {
       const resp = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), format: effectiveFormat, uploadToCatbox: saveToCatbox }),
+        body: JSON.stringify({
+          url: url.trim(),
+          format: effectiveFormat,
+          uploadToCatbox: saveToCatbox,
+          catboxUserhash: saveToCatbox ? catboxUserhash.trim() : "",
+        }),
         signal: controller.signal,
       })
 
@@ -174,7 +180,7 @@ export function Downloader() {
       })
       setStatus("error")
     }
-  }, [url, isRunning, addLog, handleEvent, effectiveFormat, saveToCatbox])
+  }, [url, isRunning, addLog, handleEvent, effectiveFormat, saveToCatbox, catboxUserhash])
 
   return (
     <div className="flex flex-col gap-4">
@@ -272,6 +278,29 @@ export function Downloader() {
           </span>
         </label>
       </div>
+
+      {saveToCatbox && (
+        <div className="flex flex-col gap-1.5">
+          <div className="relative">
+            <input
+              type="text"
+              value={catboxUserhash}
+              onChange={(e) => setCatboxUserhash(e.target.value)}
+              placeholder="catbox.moe userhash (optional — leave blank for 72h temporary link)"
+              aria-label="catbox.moe userhash"
+              disabled={isRunning}
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            />
+          </div>
+          <p className="text-[10px] font-mono text-muted-foreground/50 leading-relaxed">
+            {catboxUserhash.trim()
+              ? "Permanent storage on your catbox.moe account."
+              : "No userhash: files upload anonymously to litterbox and expire after 72 hours. Get a userhash from catbox.moe → Account."}
+          </p>
+        </div>
+      )}
 
       {result && status === "done" && <ResultCard result={result} />}
 

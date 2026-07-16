@@ -81,6 +81,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark bg-background">
+      <head>
+        <meta name="google-site-verification" content="w1VFE8NiJGnum9YfpEI4V1jjmnkou7X9huKEw8_Zd4c" />
+      </head>
       <body className="antialiased font-sans">
         <ParticleBackground />
         {children}

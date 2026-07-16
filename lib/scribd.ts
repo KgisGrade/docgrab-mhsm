@@ -211,7 +211,7 @@ export async function downloadScribd(
     let catboxUrl: string | undefined
     let catboxExpiresAt: number | undefined
     if (options.uploadToCatbox) {
-      const uploaded = await uploadToCatbox(pdfBuffer, `${slugify(title)}.pdf`, "application/pdf", log)
+      const uploaded = await uploadToCatbox(pdfBuffer, `${slugify(title)}.pdf`, "application/pdf", log, options.catboxUserhash)
       catboxUrl = uploaded.url
       catboxExpiresAt = uploaded.expiresAt
     }

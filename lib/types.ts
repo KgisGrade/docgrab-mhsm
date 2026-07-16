@@ -19,6 +19,8 @@ export type OutputFormat = "pdf" | "pptx"
 export interface DownloadOptions {
   format: OutputFormat
   uploadToCatbox: boolean
+  /** Optional catbox.moe account userhash for permanent storage. */
+  catboxUserhash?: string
 }
 
 export interface ResultEvent {

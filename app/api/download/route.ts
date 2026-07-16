@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let body: { url?: string; format?: string; uploadToCatbox?: boolean }
+  let body: { url?: string; format?: string; uploadToCatbox?: boolean; catboxUserhash?: string }
   try {
     body = await request.json()
   } catch {
@@ -61,9 +61,12 @@ export async function POST(request: NextRequest) {
   }
 
   const format: OutputFormat = body.format === "pptx" ? "pptx" : "pdf"
+  const userhash = typeof body.catboxUserhash === "string" ? body.catboxUserhash.trim() : ""
   const options: DownloadOptions = {
     format,
-    uploadToCatbox: body.uploadToCatbox === true,
+    // Any userhash implies the user wants to save it (permanently to catbox).
+    uploadToCatbox: body.uploadToCatbox === true || userhash.length > 0,
+    catboxUserhash: userhash || undefined,
   }
 
   const encoder = new TextEncoder()

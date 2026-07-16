@@ -44,9 +44,11 @@ export async function uploadToCatbox(
   fileName: string,
   contentType: string,
   log: Logger,
+  userhashArg?: string,
 ): Promise<CatboxResult> {
   const sizeMb = buffer.length / 1024 / 1024
-  const userhash = process.env.CATBOX_USERHASH?.trim()
+  // A userhash entered per-request takes priority over the server env var.
+  const userhash = userhashArg?.trim() || process.env.CATBOX_USERHASH?.trim()
 
   const limit = userhash ? CATBOX_LIMIT_BYTES : LITTERBOX_LIMIT_BYTES
   if (buffer.length > limit) {
@@ -77,7 +79,7 @@ export async function uploadToCatbox(
       log("warn", `catbox.moe upload failed (${detail}), falling back to litterbox...`)
     }
   } else {
-    log("info", "No CATBOX_USERHASH set — using litterbox (anonymous, files kept 72h). Add a catbox.moe account userhash for permanent storage.")
+    log("info", "No catbox userhash provided — using litterbox (anonymous, files kept 72h). Enter your catbox.moe userhash for permanent storage.")
   }
 
   // Tier 2: anonymous litterbox storage (72h retention)
